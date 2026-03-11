@@ -74,8 +74,9 @@ a{color:inherit}
 .hero p{margin:10px 0 0; color:var(--muted); line-height:1.58}
 .tap-hint{margin-top:12px; display:inline-block; padding:8px 10px; border:2px solid rgba(255,255,255,.16); color:#fff; font-weight:800; font-size:.84rem}
 .call-strip{display:grid; gap:12px; margin:14px 0 18px}
-.call-btn{display:block; text-decoration:none; border:2px solid var(--line); background:#000}
+.call-btn{display:block; text-decoration:none; border:0; background:transparent}
 .call-btn img{display:block; width:100%; height:auto}
+.call-btn:focus-visible{outline:2px solid #fff; outline-offset:3px}
 .sections{display:grid; gap:14px}
 .section-card{background:var(--panel); border:2px solid var(--line); padding:16px}
 .section-head{display:flex; align-items:center; gap:10px; margin-bottom:12px}
@@ -86,8 +87,10 @@ a{color:inherit}
 .section-body p{margin:0 0 12px; color:var(--muted); line-height:1.58}
 .bullet-list{display:grid; gap:12px}
 .bullet-item{display:grid; gap:10px}
-.bullet-text{display:flex; gap:10px; line-height:1.58; color:#fff}
-.bullet-text::before{content:"-"; color:var(--fx-orange); font-weight:900; flex:0 0 auto}
+.bullet-text{line-height:1.58; color:#fff}
+.bullet-text::before{content:"-"; color:var(--fx-orange); font-weight:900; margin-right:10px}
+.inline-call-picto{display:inline-block; width:auto; height:4.6em; max-width:none; margin:0 .16em; vertical-align:text-bottom; line-height:1}
+.eyebrow,#heroText,.tap-hint{display:none !important}
 .section-media{margin:0; border-top:2px solid var(--fx-orange); padding-top:10px}
 .section-media img{display:block; width:100%; height:auto; border:2px solid rgba(255,255,255,.12)}
 .footer{text-align:center; padding:22px 0 8px; color:#fff; font-weight:900; font-size:1.5rem; letter-spacing:-.03em}
@@ -217,6 +220,18 @@ function renderMedia(sectionIndex, bulletIndex) {
   `).join("");
 }
 
+
+const emergencyInlinePicto = `<img src="img/emergency-pictogram.png" alt="112 pictogram" class="inline-call-picto" />`;
+const securityInlinePicto = `<img src="img/security-pictogram.png" alt="Security pictogram" class="inline-call-picto" />`;
+
+function injectInlinePictos(text) {
+  if (!text) return "";
+  return text
+    .replace("112", emergencyInlinePicto)
+    .replace("0316 799476", securityInlinePicto);
+}
+
+
 function render(lang) {
   const t = content[lang] || content.en;
   document.documentElement.lang = lang;
@@ -236,7 +251,7 @@ function render(lang) {
     const intro = section.text ? `<p>${section.text}</p>` : "";
     const bulletsHtml = (section.bullets || []).map((item, bulletIndex) => `
       <div class="bullet-item">
-        <div class="bullet-text">${item}</div>
+        <div class="bullet-text">${injectInlinePictos(item)}</div>
         ${renderMedia(sectionIndex, bulletIndex)}
       </div>
     `).join("");
