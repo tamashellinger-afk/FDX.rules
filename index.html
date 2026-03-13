@@ -39,7 +39,7 @@ a{color:inherit}
 
 .brand-image{display:flex; justify-content:center}
 .splash-logo-img{display:block; width:min(72vw,520px); height:auto}
-.logo-img{display:block; width:154px; height:auto; flex:0 0 auto}
+.logo-img{display:block; width:154px; height:auto; flex:0 0 auto; background:transparent}
 .splash-tag{margin-top:16px; font-size:clamp(1rem,4vw,1.2rem); opacity:.92; letter-spacing:.05em}
 .app{opacity:0; transform:translateY(10px); transition:opacity .4s ease, transform .4s ease}
 .app.ready{opacity:1; transform:none}
@@ -77,10 +77,6 @@ a{color:inherit}
 .hero h1{margin:0; font-size:2rem; line-height:1.02; letter-spacing:-.04em; color:#fff}
 .hero p{margin:10px 0 0; color:var(--muted); line-height:1.58}
 .tap-hint{margin-top:12px; display:inline-block; padding:8px 10px; border:2px solid rgba(255,255,255,.16); color:#fff; font-weight:800; font-size:.84rem}
-.call-strip{display:grid; gap:12px; margin:14px 0 18px}
-.call-btn{display:block; text-decoration:none; border:0; background:transparent}
-.call-btn img{display:block; width:100%; height:auto}
-.call-btn:focus-visible{outline:2px solid #fff; outline-offset:3px}
 .sections{display:grid; gap:14px}
 .section-card{background:var(--panel); border:2px solid var(--line); padding:16px}
 .section-head{display:flex; align-items:center; gap:10px; margin-bottom:12px}
@@ -142,14 +138,6 @@ a{color:inherit}
       <div class="tap-hint" id="tapHint"></div>
     </section>
 
-    <div class="call-strip">
-      <a href="tel:112" class="call-btn" aria-label="Call 112">
-        <img src="img/emergency-pictogram.png" alt="Emergency 112 pictogram" />
-      </a>
-      <a href="tel:+31316799476" class="call-btn" aria-label="Call security 0316 799476">
-        <img src="img/security-pictogram.png" alt="Security phone pictogram" />
-      </a>
-    </div>
 
     <section class="sections" id="sections"></section>
 
