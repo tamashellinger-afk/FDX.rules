@@ -39,7 +39,7 @@ a{color:inherit}
 
 .brand-image{display:flex; justify-content:center}
 .splash-logo-img{display:block; width:min(72vw,520px); height:auto}
-.logo-img{display:block; width:154px; height:auto; flex:0 0 auto; background:transparent}
+.logo-img{display:block; width:154px; height:auto; flex:0 0 auto}
 .splash-tag{margin-top:16px; font-size:clamp(1rem,4vw,1.2rem); opacity:.92; letter-spacing:.05em}
 .app{opacity:0; transform:translateY(10px); transition:opacity .4s ease, transform .4s ease}
 .app.ready{opacity:1; transform:none}
@@ -77,6 +77,10 @@ a{color:inherit}
 .hero h1{margin:0; font-size:2rem; line-height:1.02; letter-spacing:-.04em; color:#fff}
 .hero p{margin:10px 0 0; color:var(--muted); line-height:1.58}
 .tap-hint{margin-top:12px; display:inline-block; padding:8px 10px; border:2px solid rgba(255,255,255,.16); color:#fff; font-weight:800; font-size:.84rem}
+.call-strip{display:grid; gap:12px; margin:14px 0 18px}
+.call-btn{display:block; text-decoration:none; border:0; background:transparent}
+.call-btn img{display:block; width:100%; height:auto}
+.call-btn:focus-visible{outline:2px solid #fff; outline-offset:3px}
 .sections{display:grid; gap:14px}
 .section-card{background:var(--panel); border:2px solid var(--line); padding:16px}
 .section-head{display:flex; align-items:center; gap:10px; margin-bottom:12px}
@@ -102,6 +106,93 @@ a{color:inherit}
   .toptext small{font-size:.8rem}
   .lang-box select{min-width:116px; padding:9px 10px; font-size:.92rem}
 }
+
+.splash{
+  overflow:hidden;
+}
+.splash::before{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255,255,255,.08), transparent 22%),
+    linear-gradient(135deg,#24003d 0%, #4d148c 62%, #ff6600 140%);
+  transform:scale(1);
+  transition:transform 1.8s cubic-bezier(.22,.8,.16,1), opacity .8s ease;
+}
+.splash.animate::before{
+  transform:scale(1.08);
+}
+.splash-inner{
+  position:relative; z-index:2;
+}
+.splash-logo-wrap{
+  position:relative;
+  display:inline-block;
+}
+.splash-logo-img{
+  position:relative;
+  z-index:2;
+  transform-origin:62% 36%;
+  transition:transform 1.75s cubic-bezier(.22,.8,.16,1), opacity .95s ease, filter .95s ease;
+  will-change:transform, opacity;
+}
+.splash.animate .splash-logo-img{
+  transform:scale(7.5);
+  opacity:.18;
+  filter:blur(1.2px);
+}
+.splash-tag{
+  position:relative;
+  z-index:2;
+  transition:opacity .45s ease, transform .55s ease;
+}
+.splash.animate .splash-tag{
+  opacity:0;
+  transform:translateY(10px);
+}
+.arrow-reveal{
+  position:fixed;
+  left:var(--arrow-center-x,50vw);
+  top:var(--arrow-center-y,50vh);
+  width:var(--arrow-width,120px);
+  height:var(--arrow-height,84px);
+  transform:translate(-50%,-50%) scale(.16);
+  transform-origin:center center;
+  clip-path:polygon(0 18%, 58% 18%, 78% 0, 100% 50%, 78% 100%, 58% 82%, 0 82%, 22% 50%);
+  overflow:hidden;
+  opacity:0;
+  pointer-events:none;
+  z-index:1;
+  box-shadow:0 0 50px rgba(255,255,255,.16);
+  transition:
+    transform 1.45s cubic-bezier(.18,.82,.14,1),
+    opacity .25s ease;
+}
+.splash.animate .arrow-reveal{
+  opacity:1;
+  transform:translate(-50%,-50%) scale(42);
+}
+.arrow-reveal::after{
+  content:"";
+  position:absolute; inset:-1px;
+  border:2px solid rgba(255,255,255,.12);
+  clip-path:inherit;
+}
+.arrow-reveal-content{
+  position:absolute;
+  width:100vw;
+  min-height:100vh;
+  left:calc(-1 * var(--arrow-left, 0px));
+  top:calc(-1 * var(--arrow-top, 0px));
+}
+.arrow-reveal-content .app{
+  opacity:1 !important;
+  transform:none !important;
+}
+.arrow-reveal-content .topbar{
+  position:sticky;
+}
+
 @media (prefers-reduced-motion: reduce){
   html{scroll-behavior:auto}
   *, *::before, *::after{animation:none !important; transition:none !important}
@@ -110,8 +201,13 @@ a{color:inherit}
 </head>
 <body>
 <div id="splash" class="splash" aria-hidden="true">
+  <div id="arrowReveal" class="arrow-reveal" aria-hidden="true">
+    <div id="arrowRevealContent" class="arrow-reveal-content"></div>
+  </div>
   <div class="splash-inner">
-    <div class="brand brand-image"><img src="img/fedex-express-logo.png" alt="FedEx Express" class="splash-logo-img" /></div>
+    <div class="brand brand-image splash-logo-wrap">
+      <img id="splashLogo" src="img/fedex-express-logo.png" alt="FedEx Express" class="splash-logo-img" />
+    </div>
     <div class="splash-tag">Duiven-QAR Yard House Rules</div>
   </div>
 </div>
@@ -138,6 +234,14 @@ a{color:inherit}
       <div class="tap-hint" id="tapHint"></div>
     </section>
 
+    <div class="call-strip">
+      <a href="tel:112" class="call-btn" aria-label="Call 112">
+        <img src="img/emergency-pictogram.png" alt="Emergency 112 pictogram" />
+      </a>
+      <a href="tel:+31316799476" class="call-btn" aria-label="Call security 0316 799476">
+        <img src="img/security-pictogram.png" alt="Security phone pictogram" />
+      </a>
+    </div>
 
     <section class="sections" id="sections"></section>
 
@@ -268,11 +372,50 @@ select.addEventListener("change", (e) => render(e.target.value));
 
 const splash = document.getElementById("splash");
 const app = document.getElementById("app");
+const splashLogo = document.getElementById("splashLogo");
+const arrowReveal = document.getElementById("arrowReveal");
+const arrowRevealContent = document.getElementById("arrowRevealContent");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-setTimeout(() => {
-  splash.classList.add("hide");
+
+function setupArrowReveal(){
+  if(!splashLogo || !arrowReveal || !arrowRevealContent) return;
+  const appClone = app.cloneNode(true);
+  appClone.removeAttribute("id");
+  appClone.classList.add("ready");
+  arrowRevealContent.replaceChildren(appClone);
+
+  const rect = splashLogo.getBoundingClientRect();
+  const arrowCenterX = rect.left + rect.width * 0.615;
+  const arrowCenterY = rect.top + rect.height * 0.345;
+  const arrowWidth = Math.max(70, rect.width * 0.13);
+  const arrowHeight = Math.max(52, rect.height * 0.12);
+  const arrowLeft = arrowCenterX - arrowWidth / 2;
+  const arrowTop = arrowCenterY - arrowHeight / 2;
+
+  document.documentElement.style.setProperty("--arrow-center-x", `${arrowCenterX}px`);
+  document.documentElement.style.setProperty("--arrow-center-y", `${arrowCenterY}px`);
+  document.documentElement.style.setProperty("--arrow-width", `${arrowWidth}px`);
+  document.documentElement.style.setProperty("--arrow-height", `${arrowHeight}px`);
+  document.documentElement.style.setProperty("--arrow-left", `${arrowLeft}px`);
+  document.documentElement.style.setProperty("--arrow-top", `${arrowTop}px`);
+}
+
+function runSplash(){
+  if(reducedMotion){
+    splash.classList.add("hide");
+    app.classList.add("ready");
+    return;
+  }
+  setupArrowReveal();
   app.classList.add("ready");
-}, reducedMotion ? 120 : 1400);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => splash.classList.add("animate"));
+  });
+  setTimeout(() => splash.classList.add("hide"), 2150);
+}
+
+runSplash();
+window.addEventListener("resize", setupArrowReveal);
 </script>
 </body>
 </html>
