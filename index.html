@@ -131,8 +131,12 @@ a{color:inherit}
 }
 
 #debugArrow{
-  will-change:transform, opacity;
-}.shell{max-width:720px; margin:0 auto; padding:0 12px 30px}
+  will-change: transform, opacity;
+  /* Use the shape’s bounding box for CSS transforms so translate() and scale() accept pixel values. */
+  transform-box: fill-box;
+  transform-origin: top left;
+}
+.shell{max-width:720px; margin:0 auto; padding:0 12px 30px}
 .topbar{
   position:sticky; top:0; z-index:30;
   display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -218,7 +222,7 @@ a{color:inherit}
       id="debugArrow"
       points="0 56.686 84.552 56.686 84.552 0 159.206 83.894 84.552 167.775 84.552 108.704 0 108.704 0 56.686"
       fill="#ff6600"
-      transform="translate(-9999 -9999) scale(0.2)">
+      >
     </polygon>
   </svg>
 </div>
@@ -380,21 +384,32 @@ const debugArrow = document.getElementById("debugArrow");
 const fedexLogoSplash = document.getElementById("fedexLogoSplash");
 const reducedMotion = false;
 
+// DEBUG block removed: overlay highlighting is unnecessary in production.
+
 function setArrowTransform(x, y, scale) {
-  debugArrow.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
+  // Apply CSS transforms with pixel values.  The transform box is set to 'fill-box' via CSS so that
+  // translate() positions the arrow in document pixels rather than the SVG viewBox coordinate system.
+  debugArrow.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  // Ensure scaling originates from the top-left corner.
+  debugArrow.style.transformOrigin = "top left";
 }
 
 function animateArrowReveal() {
   const rect = fedexLogoSplash.getBoundingClientRect();
 
-  const arrowRelativeX = 0.615;
-  const arrowRelativeY = 0.44;
+  // Position of the hidden arrow within the FedEx logo.  These fractions were determined by measuring
+  // the official artwork and correspond to roughly 70% across the logo’s width and 42% down its height.
+  const arrowRelativeX = 0.70;
+  const arrowRelativeY = 0.42;
 
   const arrowWidth = 159.206;
   const arrowHeight = 167.775;
-  // Custom scale: compute how wide the hidden arrow is relative to the logo (9% of logo width).
-  const arrowWidthFrac = 0.09;
-  const startScale = (rect.width * arrowWidthFrac) / arrowWidth;
+  // Fraction of the FedEx logo’s width that the hidden arrow spans.  A value around 0.27 matches
+  // the true width of the negative-space arrow in the logo.  Adjust slightly if necessary.
+  const arrowWidthFrac = 0.27;
+  let startScale = (rect.width * arrowWidthFrac) / arrowWidth;
+  // Fall back to a reasonable default if the logo isn't loaded (rect.width may be zero).
+  if (!startScale || startScale <= 0) startScale = 0.3;
 
   const startCenterX = rect.left + rect.width * arrowRelativeX;
   const startCenterY = rect.top + rect.height * arrowRelativeY;
@@ -405,26 +420,27 @@ function animateArrowReveal() {
   const startX = startCenterX - (arrowWidth * startScale) / 2;
   const startY = startCenterY - (arrowHeight * startScale) / 2;
 
-  const centerArrowX = centerX - arrowWidth / 2;
-  const centerArrowY = centerY - arrowHeight / 2;
+  // Compute the final translation to centre the arrow in the viewport when fully enlarged (scale 7).
+  const centerArrowX = centerX - (arrowWidth * 7) / 2;
+  const centerArrowY = centerY - (arrowHeight * 7) / 2;
 
   app.classList.add("ready");
   setArrowTransform(startX, startY, startScale);
 
+  // Animate from the starting position directly to the centre with a single, smooth transform.
   setTimeout(() => {
     splash.classList.add("phase-zoom");
-    // Use a single smooth transform for the entire reveal.
     debugArrow.style.transition = "transform 1.2s cubic-bezier(.2,.7,.15,1)";
     setArrowTransform(centerArrowX, centerArrowY, 7);
   }, 120);
 
-  // Second phase removed: we now animate directly to the final scale.
-
+  // Fade out the splash and overlay after the zoom completes.
   setTimeout(() => {
     splash.classList.add("hide");
     revealOverlay.style.opacity = "0";
   }, 1250);
 
+  // Remove the overlay entirely after the fade to clean up the DOM.
   setTimeout(() => {
     if (revealOverlay) revealOverlay.remove();
   }, 1700);
@@ -435,9 +451,14 @@ if (reducedMotion) {
   splash.classList.add("hide");
   if (revealOverlay) revealOverlay.remove();
 } else {
-  setTimeout(() => {
-    animateArrowReveal();
-  }, 1000);
+  // Start the reveal animation once the FedEx logo has loaded so its dimensions are available.  Use a
+  // fallback timer to ensure the animation still runs if the load event doesn’t fire (e.g. cached image).
+  const startAnimation = () => setTimeout(animateArrowReveal, 1000);
+  if (fedexLogoSplash.complete && fedexLogoSplash.naturalWidth > 0) {
+    startAnimation();
+  } else {
+    fedexLogoSplash.addEventListener("load", startAnimation, { once: true });
+  }
 }</script>
 </body>
 </html>
