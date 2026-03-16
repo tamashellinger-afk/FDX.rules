@@ -118,10 +118,9 @@ a{color:inherit}
 #revealOverlay{
   position:fixed;
   inset:0;
-  z-index:1001;
+  z-index:998;
   pointer-events:none;
   opacity:1;
-  transition:opacity .35s ease;
 }
 
 #revealSvg{
@@ -133,8 +132,6 @@ a{color:inherit}
 
 #debugArrow{
   will-change:transform, opacity;
-  transform-box:fill-box;
-  transform-origin:center;
 }.shell{max-width:720px; margin:0 auto; padding:0 12px 30px}
 .topbar{
   position:sticky; top:0; z-index:30;
@@ -382,34 +379,26 @@ const revealOverlay = document.getElementById("revealOverlay");
 const debugArrow = document.getElementById("debugArrow");
 const fedexLogoSplash = document.getElementById("fedexLogoSplash");
 
+const LOGO_VIEWBOX = {
+  minX: -11.1504,
+  minY: -8.48125,
+  width: 96.6368,
+  height: 50.8875
+};
+
+const ARROW_NATIVE = {
+  width: 159.206,
+  height: 167.775
+};
+
+const ARROW_IN_LOGO = {
+  x: 46.798,
+  y: 7.772,
+  width: 12.820910847762322,
+  height: 13.510975198694295
+};
+
 let revealStarted = false;
-
-function setArrowTransform(x, y, scale) {
-  debugArrow.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
-}
-
-function getSplashLogoRect() {
-  const rect = fedexLogoSplash.getBoundingClientRect();
-
-  if (rect.width > 0 && rect.height > 0) {
-    return rect;
-  }
-
-  const fallbackWidth = Math.min(window.innerWidth * 0.72, 520);
-  const ratio = (fedexLogoSplash.naturalWidth && fedexLogoSplash.naturalHeight)
-    ? (fedexLogoSplash.naturalHeight / fedexLogoSplash.naturalWidth)
-    : 0.28;
-  const fallbackHeight = fallbackWidth * ratio;
-  const left = (window.innerWidth - fallbackWidth) / 2;
-  const top = (window.innerHeight - fallbackHeight) / 2 - 48;
-
-  return {
-    left,
-    top,
-    width: fallbackWidth,
-    height: fallbackHeight
-  };
-}
 
 function cleanupRevealOverlay() {
   if (revealOverlay && revealOverlay.parentNode) {
@@ -423,6 +412,46 @@ function hideSplashImmediately() {
   cleanupRevealOverlay();
 }
 
+function getArrowStartBox() {
+  const rect = fedexLogoSplash.getBoundingClientRect();
+
+  if (!rect.width || !rect.height) {
+    return null;
+  }
+
+  const scale = Math.min(
+    rect.width / LOGO_VIEWBOX.width,
+    rect.height / LOGO_VIEWBOX.height
+  );
+
+  const padX = (rect.width - LOGO_VIEWBOX.width * scale) / 2;
+  const padY = (rect.height - LOGO_VIEWBOX.height * scale) / 2;
+
+  const left = rect.left + padX + (ARROW_IN_LOGO.x - LOGO_VIEWBOX.minX) * scale;
+  const top = rect.top + padY + (ARROW_IN_LOGO.y - LOGO_VIEWBOX.minY) * scale;
+  const width = ARROW_IN_LOGO.width * scale;
+  const height = ARROW_IN_LOGO.height * scale;
+
+  return { left, top, width, height };
+}
+
+function setArrowBox(left, top, width, height, opacity = 1) {
+  if (!debugArrow) return;
+
+  const scaleX = width / ARROW_NATIVE.width;
+  const scaleY = height / ARROW_NATIVE.height;
+
+  debugArrow.setAttribute(
+    "transform",
+    `translate(${left} ${top}) scale(${scaleX} ${scaleY})`
+  );
+  debugArrow.style.opacity = String(opacity);
+}
+
+function easeOutQuint(t) {
+  return 1 - Math.pow(1 - t, 5);
+}
+
 function animateArrowReveal() {
   if (revealStarted) return;
   revealStarted = true;
@@ -432,63 +461,80 @@ function animateArrowReveal() {
     return;
   }
 
-  const rect = getSplashLogoRect();
+  const startBox = getArrowStartBox();
 
-  const arrowRelativeX = 0.535;
-  const arrowRelativeY = 0.44;
-
-  const arrowWidth = 159.206;
-  const arrowHeight = 167.775;
-
-  const startCenterX = rect.left + rect.width * arrowRelativeX;
-  const startCenterY = rect.top + rect.height * arrowRelativeY;
-
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
-
-  const startX = startCenterX - arrowWidth / 2;
-  const startY = startCenterY - arrowHeight / 2;
-
-  const centerArrowX = centerX - arrowWidth / 2;
-  const centerArrowY = centerY - arrowHeight / 2;
+  if (!startBox) {
+    hideSplashImmediately();
+    return;
+  }
 
   app.classList.add("ready");
   revealOverlay.style.opacity = "1";
-  debugArrow.style.opacity = "1";
-  debugArrow.style.transition = "none";
-  setArrowTransform(startX, startY, 0.28);
+  splash.classList.add("phase-zoom");
+  setArrowBox(startBox.left, startBox.top, startBox.width, startBox.height, 1);
 
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      splash.classList.add("phase-zoom");
-      debugArrow.style.transition = "transform .55s cubic-bezier(.2,.7,.15,1)";
-      setArrowTransform(centerArrowX, centerArrowY, 1);
-    });
-  });
+  const startCenterX = startBox.left + startBox.width / 2;
+  const startCenterY = startBox.top + startBox.height / 2;
+  const startScale = startBox.width / ARROW_NATIVE.width;
 
-  setTimeout(() => {
-    debugArrow.style.transition = "transform .7s cubic-bezier(.15,.8,.2,1)";
-    setArrowTransform(centerArrowX, centerArrowY, 7);
-  }, 760);
+  const coverMultiplier = Math.max(
+    window.innerWidth / startBox.width,
+    window.innerHeight / startBox.height
+  ) * 2.35;
 
-  setTimeout(() => {
+  const driftX = (window.innerWidth * 0.5 - startCenterX) * 0.08;
+  const driftY = (window.innerHeight * 0.5 - startCenterY) * 0.06;
+
+  const duration = 1320;
+  const fadeSplashFrom = 0.68;
+  const fadeOverlayFrom = 0.82;
+  const startTime = performance.now();
+
+  function frame(now) {
+    const raw = Math.min((now - startTime) / duration, 1);
+    const eased = easeOutQuint(raw);
+
+    const centerX = startCenterX + driftX * eased;
+    const centerY = startCenterY + driftY * eased;
+    const currentScale = startScale * (1 + (coverMultiplier - 1) * eased);
+    const currentWidth = ARROW_NATIVE.width * currentScale;
+    const currentHeight = ARROW_NATIVE.height * currentScale;
+
+    setArrowBox(
+      centerX - currentWidth / 2,
+      centerY - currentHeight / 2,
+      currentWidth,
+      currentHeight,
+      1
+    );
+
+    if (raw >= fadeSplashFrom) {
+      const splashFade = 1 - ((raw - fadeSplashFrom) / (1 - fadeSplashFrom));
+      splash.style.opacity = String(Math.max(0, splashFade));
+    }
+
+    if (raw >= fadeOverlayFrom) {
+      const overlayFade = 1 - ((raw - fadeOverlayFrom) / (1 - fadeOverlayFrom));
+      revealOverlay.style.opacity = String(Math.max(0, overlayFade));
+    }
+
+    if (raw < 1) {
+      requestAnimationFrame(frame);
+      return;
+    }
+
     splash.classList.add("hide");
-  }, 1220);
-
-  setTimeout(() => {
-    revealOverlay.style.opacity = "0";
-  }, 1380);
-
-  setTimeout(() => {
     cleanupRevealOverlay();
-  }, 1820);
+  }
+
+  requestAnimationFrame(frame);
 }
 
 function scheduleArrowReveal() {
   if (revealStarted) return;
   setTimeout(() => {
     animateArrowReveal();
-  }, 220);
+  }, 240);
 }
 
 if (fedexLogoSplash.complete && fedexLogoSplash.naturalWidth > 0) {
@@ -502,7 +548,7 @@ if (fedexLogoSplash.complete && fedexLogoSplash.naturalWidth > 0) {
 
   setTimeout(() => {
     if (!revealStarted) animateArrowReveal();
-  }, 1600);
+  }, 1800);
 }</script>
 </body>
 </html>
