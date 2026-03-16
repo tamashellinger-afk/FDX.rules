@@ -118,9 +118,10 @@ a{color:inherit}
 #revealOverlay{
   position:fixed;
   inset:0;
-  z-index:998;
+  z-index:1001;
   pointer-events:none;
   opacity:1;
+  transition:opacity .35s ease;
 }
 
 #revealSvg{
@@ -132,6 +133,8 @@ a{color:inherit}
 
 #debugArrow{
   will-change:transform, opacity;
+  transform-box:fill-box;
+  transform-origin:center;
 }.shell{max-width:720px; margin:0 auto; padding:0 12px 30px}
 .topbar{
   position:sticky; top:0; z-index:30;
@@ -378,14 +381,58 @@ const app = document.getElementById("app");
 const revealOverlay = document.getElementById("revealOverlay");
 const debugArrow = document.getElementById("debugArrow");
 const fedexLogoSplash = document.getElementById("fedexLogoSplash");
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let revealStarted = false;
 
 function setArrowTransform(x, y, scale) {
   debugArrow.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
 }
 
-function animateArrowReveal() {
+function getSplashLogoRect() {
   const rect = fedexLogoSplash.getBoundingClientRect();
+
+  if (rect.width > 0 && rect.height > 0) {
+    return rect;
+  }
+
+  const fallbackWidth = Math.min(window.innerWidth * 0.72, 520);
+  const ratio = (fedexLogoSplash.naturalWidth && fedexLogoSplash.naturalHeight)
+    ? (fedexLogoSplash.naturalHeight / fedexLogoSplash.naturalWidth)
+    : 0.28;
+  const fallbackHeight = fallbackWidth * ratio;
+  const left = (window.innerWidth - fallbackWidth) / 2;
+  const top = (window.innerHeight - fallbackHeight) / 2 - 48;
+
+  return {
+    left,
+    top,
+    width: fallbackWidth,
+    height: fallbackHeight
+  };
+}
+
+function cleanupRevealOverlay() {
+  if (revealOverlay && revealOverlay.parentNode) {
+    revealOverlay.parentNode.removeChild(revealOverlay);
+  }
+}
+
+function hideSplashImmediately() {
+  app.classList.add("ready");
+  splash.classList.add("hide");
+  cleanupRevealOverlay();
+}
+
+function animateArrowReveal() {
+  if (revealStarted) return;
+  revealStarted = true;
+
+  if (!splash || !app || !revealOverlay || !debugArrow || !fedexLogoSplash) {
+    hideSplashImmediately();
+    return;
+  }
+
+  const rect = getSplashLogoRect();
 
   const arrowRelativeX = 0.535;
   const arrowRelativeY = 0.44;
@@ -406,13 +453,18 @@ function animateArrowReveal() {
   const centerArrowY = centerY - arrowHeight / 2;
 
   app.classList.add("ready");
+  revealOverlay.style.opacity = "1";
+  debugArrow.style.opacity = "1";
+  debugArrow.style.transition = "none";
   setArrowTransform(startX, startY, 0.28);
 
-  setTimeout(() => {
-    splash.classList.add("phase-zoom");
-    debugArrow.style.transition = "transform .55s cubic-bezier(.2,.7,.15,1)";
-    setArrowTransform(centerArrowX, centerArrowY, 1.0);
-  }, 120);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      splash.classList.add("phase-zoom");
+      debugArrow.style.transition = "transform .55s cubic-bezier(.2,.7,.15,1)";
+      setArrowTransform(centerArrowX, centerArrowY, 1);
+    });
+  });
 
   setTimeout(() => {
     debugArrow.style.transition = "transform .7s cubic-bezier(.15,.8,.2,1)";
@@ -421,22 +473,36 @@ function animateArrowReveal() {
 
   setTimeout(() => {
     splash.classList.add("hide");
-    revealOverlay.style.opacity = "0";
-  }, 1250);
+  }, 1220);
 
   setTimeout(() => {
-    if (revealOverlay) revealOverlay.remove();
-  }, 1700);
+    revealOverlay.style.opacity = "0";
+  }, 1380);
+
+  setTimeout(() => {
+    cleanupRevealOverlay();
+  }, 1820);
 }
 
-if (reducedMotion) {
-  app.classList.add("ready");
-  splash.classList.add("hide");
-  if (revealOverlay) revealOverlay.remove();
-} else {
+function scheduleArrowReveal() {
+  if (revealStarted) return;
   setTimeout(() => {
     animateArrowReveal();
-  }, 1000);
+  }, 220);
+}
+
+if (fedexLogoSplash.complete && fedexLogoSplash.naturalWidth > 0) {
+  scheduleArrowReveal();
+} else {
+  fedexLogoSplash.addEventListener("load", scheduleArrowReveal, { once: true });
+  fedexLogoSplash.addEventListener("error", scheduleArrowReveal, { once: true });
+  window.addEventListener("load", () => {
+    if (!revealStarted) scheduleArrowReveal();
+  }, { once: true });
+
+  setTimeout(() => {
+    if (!revealStarted) animateArrowReveal();
+  }, 1600);
 }</script>
 </body>
 </html>
