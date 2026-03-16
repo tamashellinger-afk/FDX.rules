@@ -120,11 +120,6 @@ a{color:inherit}
   inset:0;
   z-index:998;
   pointer-events:none;
-  opacity:0;
-  transition:opacity .25s ease;
-}
-
-#revealOverlay.active{
   opacity:1;
 }
 
@@ -132,10 +127,11 @@ a{color:inherit}
   display:block;
   width:100%;
   height:100%;
+  overflow:visible;
 }
 
-#arrowMaskGroup{
-  will-change:transform;
+#debugArrow{
+  will-change:transform, opacity;
 }.shell{max-width:720px; margin:0 auto; padding:0 12px 30px}
 .topbar{
   position:sticky; top:0; z-index:30;
@@ -217,23 +213,13 @@ a{color:inherit}
 </div>
 
 <div id="revealOverlay" aria-hidden="true">
-  <svg id="revealSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
-    <defs>
-      <mask id="arrowMask">
-        <rect x="0" y="0" width="100%" height="100%" fill="black"></rect>
-
-        <g id="arrowMaskGroup" transform="translate(-9999 -9999) scale(0.2)">
-          <svg x="0" y="0" width="160" height="168" viewBox="0 0 159.206 167.775">
-            <polygon
-              points="0 56.686 84.552 56.686 84.552 0 159.206 83.894 84.552 167.775 84.552 108.704 0 108.704 0 56.686"
-              fill="white">
-            </polygon>
-          </svg>
-        </g>
-      </mask>
-    </defs>
-
-    <rect x="0" y="0" width="100%" height="100%" fill="#4d148c" mask="url(#arrowMask)"></rect>
+  <svg id="revealSvg" width="100%" height="100%">
+    <polygon
+      id="debugArrow"
+      points="0 56.686 84.552 56.686 84.552 0 159.206 83.894 84.552 167.775 84.552 108.704 0 108.704 0 56.686"
+      fill="#ff6600"
+      transform="translate(-9999 -9999) scale(0.2)">
+    </polygon>
   </svg>
 </div>
 
@@ -390,23 +376,22 @@ select.addEventListener("change", (e) => render(e.target.value));
 const splash = document.getElementById("splash");
 const app = document.getElementById("app");
 const revealOverlay = document.getElementById("revealOverlay");
-const arrowMaskGroup = document.getElementById("arrowMaskGroup");
+const debugArrow = document.getElementById("debugArrow");
 const fedexLogoSplash = document.getElementById("fedexLogoSplash");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function setArrowTransform(x, y, scale) {
-  arrowMaskGroup.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
+  debugArrow.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
 }
 
 function animateArrowReveal() {
   const rect = fedexLogoSplash.getBoundingClientRect();
 
-  /* tune these two numbers if needed */
   const arrowRelativeX = 0.535;
   const arrowRelativeY = 0.44;
 
-  const arrowWidth = 160;
-  const arrowHeight = 168;
+  const arrowWidth = 159.206;
+  const arrowHeight = 167.775;
 
   const startCenterX = rect.left + rect.width * arrowRelativeX;
   const startCenterY = rect.top + rect.height * arrowRelativeY;
@@ -420,27 +405,24 @@ function animateArrowReveal() {
   const centerArrowX = centerX - arrowWidth / 2;
   const centerArrowY = centerY - arrowHeight / 2;
 
-  revealOverlay.classList.add("active");
   app.classList.add("ready");
-
-  setArrowTransform(startX, startY, 0.34);
+  setArrowTransform(startX, startY, 0.28);
 
   setTimeout(() => {
     splash.classList.add("phase-zoom");
-
-    arrowMaskGroup.style.transition = "transform .52s cubic-bezier(.2,.7,.15,1)";
-    setArrowTransform(centerArrowX, centerArrowY, 1.05);
+    debugArrow.style.transition = "transform .55s cubic-bezier(.2,.7,.15,1)";
+    setArrowTransform(centerArrowX, centerArrowY, 1.0);
   }, 120);
 
   setTimeout(() => {
-    arrowMaskGroup.style.transition = "transform .64s cubic-bezier(.15,.8,.2,1)";
-    setArrowTransform(centerArrowX, centerArrowY, 14);
-  }, 700);
+    debugArrow.style.transition = "transform .7s cubic-bezier(.15,.8,.2,1)";
+    setArrowTransform(centerArrowX, centerArrowY, 7);
+  }, 760);
 
   setTimeout(() => {
     splash.classList.add("hide");
     revealOverlay.style.opacity = "0";
-  }, 1220);
+  }, 1250);
 
   setTimeout(() => {
     if (revealOverlay) revealOverlay.remove();
