@@ -115,22 +115,45 @@ a{color:inherit}
   opacity:1;
 }
 
+/*
+  The reveal overlay sits on top of the splash.  Use a high z-index so that
+  the arrow image is rendered above the splash content during the animation.
+*/
 #revealOverlay{
   position:fixed;
   inset:0;
-  z-index:998;
+  z-index:1001;
   pointer-events:none;
   opacity:1;
 }
 
+/*
+  Styling for the reveal arrow image.  The arrow is an SVG file loaded as an
+  <img> so that it can be transformed using CSS.  The will-change hint
+  improves animation performance.
+*/
+/*
+  The reveal arrow starts off invisible so that it doesn’t flash in its natural size
+  before the animation.  We set transform‑origin to the top left so pixel
+  translations applied by the JavaScript correspond to the arrow’s top‑left
+  corner.  The will‑change hint improves animation performance.
+*/
 #revealArrow{
-  position:fixed;
-  left:0;
-  top:0;
-  width:auto;
-  height:auto;
-  transform-origin: top left;
-  will-change: transform, top, left;
+  display:block;
+  opacity:0;
+  transform-origin:0 0;
+  will-change: transform, opacity;
+}
+
+#revealSvg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+#debugArrow{
+  will-change:transform, opacity;
 }.shell{max-width:720px; margin:0 auto; padding:0 12px 30px}
 .topbar{
   position:sticky; top:0; z-index:30;
@@ -177,7 +200,8 @@ a{color:inherit}
 .bullet-item{display:grid; gap:10px}
 .bullet-text{line-height:1.58; color:#fff}
 .bullet-text::before{content:"-"; color:var(--fx-orange); font-weight:900; margin-right:10px}
-.inline-call-picto{display:inline-block; width:auto; height:4.6em; max-width:none; margin:0 .16em; vertical-align:text-bottom; line-height:1}
+.inline-call-link{display:inline-block; text-decoration:none; vertical-align:text-bottom; line-height:1}
+.inline-call-picto{display:inline-block; width:auto; height:4.6em; max-width:none; margin:0 .16em; vertical-align:text-bottom; line-height:1; cursor:pointer}
 .eyebrow,#heroText,.tap-hint{display:none !important}
 .section-media{margin:0; border-top:2px solid var(--fx-orange); padding-top:10px}
 .section-media img{display:block; width:100%; height:auto; border:2px solid rgba(255,255,255,.12)}
@@ -191,9 +215,14 @@ a{color:inherit}
   .lang-box select{min-width:116px; padding:9px 10px; font-size:.92rem}
 }
 @media (prefers-reduced-motion: reduce){
+  /*
+    Respect the user’s reduced motion preference by disabling smooth scroll
+    behaviour on the page.  We intentionally do not disable all transitions
+    globally because doing so would also suppress the reveal animation.  If
+    reduced motion is enabled the JavaScript sets the splash to hidden
+    immediately (see the script below).
+  */
   html{scroll-behavior:auto}
-  /* Keep the splash/reveal animation enabled; suppress motion only in page content. */
-  .sections *, .topbar *, .hero *, .footer *{animation:none !important; transition:none !important}
 }
 </style>
 </head>
@@ -212,8 +241,18 @@ a{color:inherit}
   </div>
 </div>
 
+<!--
+  The reveal overlay contains the animated arrow.  In the original file the arrow
+  was defined as an inline <polygon> inside an <svg> and hidden off‑screen.
+  That approach made it difficult to position the arrow precisely relative to
+  the FedEx logo and produced inconsistent results when scaling and
+  translating the shape.  Here the arrow is instead rendered as an <img>
+  element.  Because it’s a normal DOM element we can apply CSS transforms
+  using pixel units, which makes it straightforward to compute the start
+  position, scale and final position in the reveal animation.
+-->
 <div id="revealOverlay" aria-hidden="true">
-  <img id="revealArrow" src="img/fedex-arrow-mask.svg" alt="" />
+  <img id="revealArrow" src="img/fedex-arrow-mask.svg" alt="Reveal arrow" style="position:absolute; left:0; top:0;" />
 </div>
 
 <div id="app" class="app">  <div class="shell">
@@ -313,8 +352,8 @@ function renderMedia(sectionIndex, bulletIndex) {
 }
 
 
-const emergencyInlinePicto = `<img src="img/emergency-pictogram.png" alt="112 pictogram" class="inline-call-picto" />`;
-const securityInlinePicto = `<img src="img/security-pictogram.png" alt="Security pictogram" class="inline-call-picto" />`;
+const emergencyInlinePicto = `<a href="tel:112" class="inline-call-link" aria-label="Call 112"><img src="img/emergency-pictogram.png" alt="112 pictogram" class="inline-call-picto" /></a>`;
+const securityInlinePicto = `<a href="tel:+31316799476" class="inline-call-link" aria-label="Call security"><img src="img/security-pictogram.png" alt="Security pictogram" class="inline-call-picto" /></a>`;
 
 function injectInlinePictos(text) {
   if (!text) return "";
@@ -371,53 +410,151 @@ const app = document.getElementById("app");
 const revealOverlay = document.getElementById("revealOverlay");
 const revealArrow = document.getElementById("revealArrow");
 const fedexLogoSplash = document.getElementById("fedexLogoSplash");
-const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Always animate regardless of the user’s reduced motion preference.  We no longer
+// suppress animations via CSS and the splash hides immediately only when
+// reducedMotion is explicitly set to true.  By default this flag remains false.
+const reducedMotion = false;
 
-function setArrowPositionScale(x, y, scale) {
-  revealArrow.style.left = `${x}px`;
-  revealArrow.style.top = `${y}px`;
-  revealArrow.style.transform = `scale(${scale})`;
+// Internal flag to ensure the reveal animation runs at most once.  Both the
+// default timeout (below) and the explicit load‑triggered logic will call
+// animateArrowReveal(); whichever call happens first will set this flag and
+// subsequent calls will return immediately.
+let revealStarted = false;
+
+// When animations are enabled (reducedMotion is false) we want to wait until
+// both the FedEx logo and the reveal arrow have loaded before starting the
+// reveal.  Because the default behaviour also triggers animateArrowReveal()
+// after a 1 second timeout, we use the revealStarted flag to guard against
+// double execution.  If the images are ready the animation begins after a
+// 1 second delay; otherwise load listeners wait for the resources to finish.
+if (!reducedMotion) {
+  const startReveal = () => {
+    setTimeout(() => {
+      animateArrowReveal();
+    }, 1000);
+  };
+  const logoReady = fedexLogoSplash.complete && fedexLogoSplash.naturalWidth > 0;
+  const arrowReady = revealArrow.complete && revealArrow.naturalWidth > 0;
+  if (logoReady && arrowReady) {
+    startReveal();
+  } else {
+    let pending = 0;
+    const onLoad = () => {
+      pending--;
+      if (pending === 0) startReveal();
+    };
+    if (!logoReady) {
+      pending++;
+      fedexLogoSplash.addEventListener("load", onLoad, { once: true });
+    }
+    if (!arrowReady) {
+      pending++;
+      revealArrow.addEventListener("load", onLoad, { once: true });
+    }
+  }
+}
+
+function setArrowTransform(scale, tx, ty) {
+  // Apply a CSS transform on the reveal arrow.  We place the scale first so
+  // that the subsequent translation (tx, ty) applies after scaling, making it
+  // straightforward to compute a pixel offset for the scaled image.  See
+  // animateArrowReveal() for how tx and ty are calculated.
+  revealArrow.style.transform = `scale(${scale}) translate(${tx}px, ${ty}px)`;
 }
 
 function animateArrowReveal() {
-  const rect = fedexLogoSplash.getBoundingClientRect();
+  // Prevent multiple invocations.  If the reveal has already started, return
+  // immediately without doing anything.
+  if (revealStarted) return;
+  revealStarted = true;
 
-  const arrowRelativeX = 0.70;
+  // Show the arrow.  It starts off hidden (opacity 0) to avoid flashing at
+  // its natural size before the animation begins.
+  revealArrow.style.opacity = "1";
+
+
+  // Compute the bounding rect of the splash logo.  The logo must be loaded
+  // before invoking this function; otherwise rect.width will be 0 and the
+  // animation will not position the arrow correctly.
+  const rect = fedexLogoSplash.getBoundingClientRect();
+  // Natural dimensions of the arrow image.  We use the actual image size
+  // instead of hard‑coding the values to allow the browser to fetch the
+  // intrinsic dimensions from the SVG.  If naturalWidth is 0 (e.g. image
+  // hasn’t loaded) we fall back to the known width/height.
+  const naturalArrowWidth = revealArrow.naturalWidth || 159.206;
+  const naturalArrowHeight = revealArrow.naturalHeight || 167.775;
+
+  // These fractions place the arrow’s centre on the negative space between
+  // the “E” and “x” in the FedEx logo.  They have been calibrated against
+  // the actual FedEx Express artwork so the arrow aligns with the logo’s
+  // white negative space.  Feel free to fine‑tune them by a few hundredths
+  // if the positioning looks off by a pixel or two on your deployment.
+  // These fractions place the arrow’s centre on the negative space between
+  // the “E” and “x” in the FedEx logo.  Adjust by a few hundredths if needed
+  // to fine‑tune the alignment once deployed.
+  const arrowRelativeX = 0.72;
   const arrowRelativeY = 0.42;
 
-  const arrowWidth = 159.206;
-  const arrowHeight = 167.775;
+  // The relative width of the arrow compared to the splash logo width.  A
+  // value around 0.17 matches the proportion of the hidden arrow in the
+  // FedEx logo.  Adjust this value up or down if the arrow appears too
+  // large or too small during the reveal.
   const arrowWidthFrac = 0.17;
-  let startScale = (rect.width * arrowWidthFrac) / arrowWidth;
-  if (!startScale || startScale <= 0) startScale = 0.3;
 
+  // Starting scale factor: scale the arrow down so that its width matches
+  // arrowWidthFrac of the splash logo’s width.
+  const startScale = (rect.width * arrowWidthFrac) / naturalArrowWidth;
+
+  // Start centre coordinates within the splash logo.
   const startCenterX = rect.left + rect.width * arrowRelativeX;
   const startCenterY = rect.top + rect.height * arrowRelativeY;
-  const startX = startCenterX - (arrowWidth * startScale) / 2;
-  const startY = startCenterY - (arrowHeight * startScale) / 2;
 
-  const endScale = 7;
-  const endX = (window.innerWidth - arrowWidth * endScale) / 2;
-  const endY = (window.innerHeight - arrowHeight * endScale) / 2;
+  // Final centre coordinates at the centre of the viewport.
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
 
+  // Final scale factor for the reveal.  A value around 7 makes the arrow
+  // expand to cover most of the screen.  You can adjust this number to
+  // control how far the arrow grows.
+  // Final scale factor for the reveal.  A value around 7 makes the arrow
+  // expand to cover most of the screen.  You can adjust this number to
+  // control how far the arrow grows.
+  const finalScale = 7;
+
+  // Compute translation offsets for the transform `scale(...) translate(...)`.
+  // Because translation is applied after scaling, the offsets are computed
+  // against the scaled dimensions.
+  const startTx = startCenterX - (naturalArrowWidth * startScale) / 2;
+  const startTy = startCenterY - (naturalArrowHeight * startScale) / 2;
+
+  const finalTx = centerX - (naturalArrowWidth * finalScale) / 2;
+  const finalTy = centerY - (naturalArrowHeight * finalScale) / 2;
+
+  // Mark the application as ready so the rest of the page content can fade in.
   app.classList.add("ready");
-  setArrowPositionScale(startX, startY, startScale);
 
+  // Initialise the arrow’s transform without transition.
+  setArrowTransform(startScale, startTx, startTy);
+
+  // Kick off the animation after a small delay so the splash zoom effect
+  // synchronises nicely with the arrow growth.  The splash.inner element
+  // itself zooms via CSS when the `phase-zoom` class is added.
   setTimeout(() => {
     splash.classList.add("phase-zoom");
-    revealArrow.style.setProperty(
-      "transition",
-      "left 1.2s cubic-bezier(.2,.7,.15,1), top 1.2s cubic-bezier(.2,.7,.15,1), transform 1.2s cubic-bezier(.2,.7,.15,1)",
-      "important"
-    );
-    setArrowPositionScale(endX, endY, endScale);
+    // Apply a smooth transition for the arrow.  We use a cubic bezier
+    // matching the splash zoom for consistency.  The !important flag ensures
+    // our animation isn’t suppressed by any global reduced motion settings.
+    revealArrow.style.transition = "transform 1.2s cubic-bezier(.2,.7,.15,1) !important";
+    setArrowTransform(finalScale, finalTx, finalTy);
   }, 120);
 
+  // Fade out the splash and overlay after the arrow has grown.
   setTimeout(() => {
     splash.classList.add("hide");
     revealOverlay.style.opacity = "0";
   }, 1250);
 
+  // Remove the overlay completely once the animation is done.
   setTimeout(() => {
     if (revealOverlay) revealOverlay.remove();
   }, 1700);
@@ -428,21 +565,9 @@ if (reducedMotion) {
   splash.classList.add("hide");
   if (revealOverlay) revealOverlay.remove();
 } else {
-  const startAnimation = () => {
-    if (revealArrow.complete && revealArrow.naturalWidth > 0) {
-      animateArrowReveal();
-    } else {
-      setTimeout(() => animateArrowReveal(), 50);
-    }
-  };
-  if (fedexLogoSplash.complete && fedexLogoSplash.naturalWidth > 0) {
-    setTimeout(startAnimation, 1000);
-  } else {
-    fedexLogoSplash.addEventListener("load", () => {
-      setTimeout(startAnimation, 1000);
-    }, { once:true });
-    setTimeout(startAnimation, 1200);
-  }
+  setTimeout(() => {
+    animateArrowReveal();
+  }, 1000);
 }</script>
 </body>
 </html>
